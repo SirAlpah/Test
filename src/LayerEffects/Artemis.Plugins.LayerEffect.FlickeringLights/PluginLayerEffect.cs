@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Artemis.Core.LayerEffects;
 using Artemis.Plugins.LayerEffect.FlickeringLights.PropertyGroups;
 using SkiaSharp;
@@ -9,6 +9,7 @@ namespace Artemis.Plugins.LayerEffect.FlickeringLights
     {
         private float _progress;
         private float _alpha;
+        private SKPaint _buffer;
 
         public override void EnableLayerEffect() { }
 
@@ -16,26 +17,35 @@ namespace Artemis.Plugins.LayerEffect.FlickeringLights
 
         public override void Update(double deltaTime)
         {
-            var loopTime = Math.Max(Properties.LoopTime.CurrentValue, 0.1f);
-            _progress += (float)deltaTime;
-            _alpha = GetNextAlpha(_progress / loopTime);
-            if (_progress > loopTime)
-                _progress = 0;
+            // Update _progress to control the blend. For example, you might increment it over time
+            // _progress = (float)((_progress + deltaTime) % 1.0); // This is just an example
         }
-
-        private float GetNextAlpha(float position)
-        {
-            position = Math.Clamp(position, 0, 1);
-            var charIndex = (int)Math.Round(position * (Properties.FlickeringPattern.CurrentValue.ToString().Length - 1), 0);
-            return ((Properties.FlickeringPattern.CurrentValue.ToString()[charIndex] - 'a') / 25f) * 2;
-        }
-
-
+        
         public override void PreProcess(SKCanvas canvas, SKRect renderBounds, SKPaint paint)
         {
-            paint.ColorF = paint.ColorF.WithAlpha(_alpha);
+            if (_buffer != null)
+            {
+                // Blend the current paint with the _buffer paint based on _progress
+                paint.Color = BlendColors(_buffer.Color, paint.Color, _progress);
+            }
+
+            // Apply the alpha
+            paint.Color = paint.Color.WithAlpha((byte)(_alpha * 255));
         }
 
-        public override void PostProcess(SKCanvas canvas, SKRect renderBounds, SKPaint paint) { }
+        public override void PostProcess(SKCanvas canvas, SKRect renderBounds, SKPaint paint)
+        {
+            // Store the current paint for blending in the next frame
+            _buffer = new SKPaint(paint);
+        }
+
+        private SKColor BlendColors(SKColor color1, SKColor color2, float t)
+        {
+            byte r = (byte)(color1.Red + t * (color2.Red - color1.Red));
+            byte g = (byte)(color1.Green + t * (color2.Green - color1.Green));
+            byte b = (byte)(color1.Blue + t * (color2.Blue - color1.Blue));
+            byte a = (byte)(color1.Alpha + t * (color2.Alpha - color1.Alpha));
+            return new SKColor(r, g, b, a);
+        }
     }
 }
